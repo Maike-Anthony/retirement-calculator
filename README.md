@@ -11,7 +11,7 @@ This is a **Retirement Calculator** for planning your future finances. It helps 
 - **Withdrawal Rate**: Allows you to plan your annual withdrawals to generate a desired monthly income.  
 - **Multiple Investment Periods**: Enter different monthly deposits for different periods of your life to simulate changing contributions over time.
 - **Multiple Simulations**: Allows you to save multiple simulations and compare the results.
-- **Export to CSV File**: You can export the simulations to a CSV file.
+- **Export to a CSV File**: You can export the simulations to a CSV file.
 
 The tool provides a **detailed summary**, including:
 
