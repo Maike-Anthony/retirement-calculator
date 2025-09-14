@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { runInvestmentCalculator } from "../../utils/calculator";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 // Helper function to format numbers with thousand separators
 const formatNumber = (num, decimals = 2) => {
@@ -10,19 +10,51 @@ const formatNumber = (num, decimals = 2) => {
   }).format(num);
 };
 
+// Helper function to export data as CSV - FIXED VERSION
+const exportToCSV = (data, filename) => {
+  // Create CSV content from the data array
+  const csvContent = data.map(row => row.join(',')).join('\n');
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", `${filename}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
 export default function App() {
   const [inputs, setInputs] = useState({
-    nominalInterest: 7,        // Changed from 0.07 to 7 (percentage)
-    inflationRate: 2,          // Changed from 0.02 to 2 (percentage)
+    nominalInterest: 7,
+    inflationRate: 2,
     initialCapital: 10000,
     desiredMonthlyIncome: 1000,
-    withdrawalRate: 4,         // Changed from 0.04 to 4 (percentage)
-    taxRate: 15,               // Changed from 0.15 to 15 (percentage)
+    withdrawalRate: 4,
+    taxRate: 15,
     taxOption: "1",
     periods: [{ years: 10, deposit: 200 }]
   });
 
   const [results, setResults] = useState(null);
+  const [savedSimulations, setSavedSimulations] = useState([]);
+  const [editingName, setEditingName] = useState(null);
+  const [newName, setNewName] = useState("");
+
+  // Load saved simulations from localStorage on component mount
+  useEffect(() => {
+    const saved = localStorage.getItem('savedSimulations');
+    if (saved) {
+      setSavedSimulations(JSON.parse(saved));
+    }
+  }, []);
+
+  // Save simulations to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('savedSimulations', JSON.stringify(savedSimulations));
+  }, [savedSimulations]);
 
   const handleChange = (e) => {
     const value = e.target.value;
@@ -54,6 +86,123 @@ export default function App() {
       }))
     });
     setResults(res);
+    
+    // Save this simulation to history
+    const simulation = {
+      id: Date.now(),
+      name: `Simulation ${savedSimulations.length + 1}`,
+      inputs: {...inputs},
+      results: {...res},
+      timestamp: new Date().toISOString()
+    };
+    
+    setSavedSimulations([simulation, ...savedSimulations]);
+  };
+
+  const exportCurrentSimulation = () => {
+  if (!results) return;
+  
+  // Create summary data
+  const summaryData = [
+    ["Parameter", "Value"],
+    ["Nominal annual interest rate", `${inputs.nominalInterest}%`],
+    ["Expected annual inflation rate", `${inputs.inflationRate}%`],
+    ["Real annual interest rate", `${(results.realInterest * 100).toFixed(2)}%`],
+    ["Initial capital", inputs.initialCapital],
+    ["Desired monthly income AFTER TAX", inputs.desiredMonthlyIncome],
+    ["Planned withdrawal rate", `${inputs.withdrawalRate}%`],
+    ["Tax rate", `${inputs.taxRate}%`],
+    ["Tax applied to", inputs.taxOption === "1" ? "Entire capital" : "Interest only"],
+    ["Capital before tax", results.capital.toFixed(2)],
+    ["Total deposits", results.totalDeposits.toFixed(2)],
+    ["Interest earned before tax", results.interestEarned.toFixed(2)],
+    ["Tax amount", results.taxAmount.toFixed(2)],
+    ["Capital after tax", results.capitalAfterTax.toFixed(2)],
+    ["Monthly income generated", results.monthlyIncomeAfterTax.toFixed(2)],
+    ["Target met", results.monthlyIncomeAfterTax >= inputs.desiredMonthlyIncome ? "Yes" : "No"],
+    [""], // Empty row
+    ["Timeline Data"],
+    ["Month", "Capital (before tax)", "Capital (after tax)"]
+  ];
+  
+  // Add timeline data
+  const timelineData = results.timeline.map(item => [
+    item.month,
+    item.capital.toFixed(2),
+    item.capitalAfterTax.toFixed(2)
+  ]);
+  
+  // Combine all data
+  const allData = [...summaryData, ...timelineData];
+  
+  // Download
+  exportToCSV(allData, `retirement_simulation_${new Date().toISOString().split('T')[0]}`);
+};
+
+const exportSavedSimulation = (simulation) => {
+  // Create summary data
+  const summaryData = [
+    ["Parameter", "Value"],
+    ["Nominal annual interest rate", `${simulation.inputs.nominalInterest}%`],
+    ["Expected annual inflation rate", `${simulation.inputs.inflationRate}%`],
+    ["Real annual interest rate", `${(simulation.results.realInterest * 100).toFixed(2)}%`],
+    ["Initial capital", simulation.inputs.initialCapital],
+    ["Desired monthly income AFTER TAX", simulation.inputs.desiredMonthlyIncome],
+    ["Planned withdrawal rate", `${simulation.inputs.withdrawalRate}%`],
+    ["Tax rate", `${simulation.inputs.taxRate}%`],
+    ["Tax applied to", simulation.inputs.taxOption === "1" ? "Entire capital" : "Interest only"],
+    ["Capital before tax", simulation.results.capital.toFixed(2)],
+    ["Total deposits", simulation.results.totalDeposits.toFixed(2)],
+    ["Interest earned before tax", simulation.results.interestEarned.toFixed(2)],
+    ["Tax amount", simulation.results.taxAmount.toFixed(2)],
+    ["Capital after tax", simulation.results.capitalAfterTax.toFixed(2)],
+    ["Monthly income generated", simulation.results.monthlyIncomeAfterTax.toFixed(2)],
+    ["Target met", simulation.results.monthlyIncomeAfterTax >= simulation.inputs.desiredMonthlyIncome ? "Yes" : "No"],
+    [""], // Empty row
+    ["Timeline Data"],
+    ["Month", "Capital (before tax)", "Capital (after tax)"]
+  ];
+  
+  // Add timeline data
+  const timelineData = simulation.results.timeline.map(item => [
+    item.month,
+    item.capital.toFixed(2),
+    item.capitalAfterTax.toFixed(2)
+  ]);
+  
+  // Combine all data
+  const allData = [...summaryData, ...timelineData];
+  
+  // Download
+  exportToCSV(allData, `retirement_simulation_${simulation.name.replace(/\s+/g, '_')}`);
+};
+
+  const loadSimulation = (simulation) => {
+    setInputs(simulation.inputs);
+    setResults(simulation.results);
+    window.scrollTo(0, 0);
+  };
+
+  const deleteSimulation = (id) => {
+    setSavedSimulations(savedSimulations.filter(sim => sim.id !== id));
+  };
+
+  const startRenaming = (simulation) => {
+    setEditingName(simulation.id);
+    setNewName(simulation.name);
+  };
+
+  const saveNewName = (id) => {
+    setSavedSimulations(savedSimulations.map(sim => 
+      sim.id === id ? {...sim, name: newName} : sim
+    ));
+    setEditingName(null);
+    setNewName("");
+  };
+
+  const cancelRenaming = () => {
+    setEditingName(null);
+    setNewName("");
   };
 
   return (
@@ -154,7 +303,19 @@ export default function App() {
         {/* Results */}
         {results && (
           <div className="bg-blue-50 rounded-2xl p-8 shadow-sm border border-blue-100">
-            <h2 className="text-3xl font-bold mb-6 text-blue-800 text-center">Investment Summary</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-blue-800">Investment Summary</h2>
+              <button 
+                onClick={exportCurrentSimulation}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Export to CSV
+              </button>
+            </div>
+            
             <div className="grid md:grid-cols-2 gap-4 mb-6">
               {[
                 `Nominal annual interest rate: ${inputs.nominalInterest}%`,
@@ -215,11 +376,57 @@ export default function App() {
             <div className="bg-white p-5 rounded-xl shadow-sm">
               <div style={{ width: "100%", height: 350 }}>
                 <ResponsiveContainer>
-                  <LineChart data={results.timeline}>
+                  <LineChart 
+                    data={results.timeline}
+                    margin={{ top: 20, right: 30, left: 70, bottom: 30 }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="month" />
+                    <XAxis 
+                      dataKey="month" 
+                      label={{ 
+                        value: 'Time (months)', 
+                        position: 'insideBottom', 
+                        offset: -5, 
+                        style: { textAnchor: 'middle', fill: '#374151' } 
+                      }}
+                      interval="preserveStartEnd"
+                      tickCount={10}
+                    />
                     <YAxis 
-                      tickFormatter={(value) => `$${formatNumber(value, 0)}`}
+                      tickFormatter={(value) => {
+                        if (value >= 1000000) {
+                          return `$${(value / 1000000).toFixed(1)}M`;
+                        } else if (value >= 1000) {
+                          return `$${Math.round(value / 1000)}K`;
+                        }
+                        return `$${value}`;
+                      }}
+                      label={{ 
+                        value: 'Capital ($)', 
+                        angle: -90, 
+                        position: 'insideLeft',
+                        offset: -10,
+                        style: { textAnchor: 'middle', fill: '#374151' }
+                      }}
+                      width={80}
+                      domain={[0, (dataMax) => {
+                        // Calculate a "nice" maximum value for the Y-axis
+                        const maxVal = dataMax * 1.1; // Add 10% padding
+                        
+                        if (maxVal < 1000) {
+                          return Math.ceil(maxVal / 100) * 100;
+                        } else if (maxVal < 10000) {
+                          return Math.ceil(maxVal / 1000) * 1000;
+                        } else if (maxVal < 100000) {
+                          return Math.ceil(maxVal / 10000) * 10000;
+                        } else if (maxVal < 1000000) {
+                          return Math.ceil(maxVal / 100000) * 100000;
+                        } else {
+                          // For values over 1M, round to the nearest 0.5M
+                          return Math.ceil(maxVal / 500000) * 500000;
+                        }
+                      }]}
+                      tickCount={6}
                     />
                     <Tooltip 
                       formatter={(value) => [`$${formatNumber(value, 2)}`, undefined]}
@@ -231,6 +438,7 @@ export default function App() {
                         color: '#1a202c'
                       }} 
                     />
+                    <Legend verticalAlign="top" height={36} />
                     <Line 
                       type="monotone" 
                       dataKey="capital" 
@@ -250,6 +458,83 @@ export default function App() {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Saved Simulations */}
+        {savedSimulations.length > 0 && (
+          <div className="mt-8 bg-blue-50 rounded-2xl p-8 shadow-sm border border-blue-100">
+            <h2 className="text-3xl font-bold text-blue-800 mb-6 text-center">Saved Simulations</h2>
+            
+            <div className="space-y-4">
+              {savedSimulations.map((simulation) => (
+                <div key={simulation.id} className="bg-white rounded-xl p-5 shadow-sm border border-blue-100">
+                  <div className="flex justify-between items-center mb-4">
+                    {editingName === simulation.id ? (
+                      <div className="flex items-center">
+                        <input
+                          type="text"
+                          value={newName}
+                          onChange={(e) => setNewName(e.target.value)}
+                          className="border border-blue-200 p-2 rounded-lg mr-2 text-gray-800" // Added text-gray-800
+                        />
+                        <button 
+                          onClick={() => saveNewName(simulation.id)}
+                          className="bg-green-500 text-white px-3 py-1 rounded-lg mr-2"
+                        >
+                          Save
+                        </button>
+                        <button 
+                          onClick={cancelRenaming}
+                          className="bg-gray-500 text-white px-3 py-1 rounded-lg"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <h3 className="text-xl font-semibold text-blue-800">{simulation.name}</h3>
+                    )}
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => loadSimulation(simulation)}
+                        className="bg-blue-500 text-white px-3 py-1 rounded-lg hover:bg-blue-600"
+                      >
+                        Load
+                      </button>
+                      <button 
+                        onClick={() => exportSavedSimulation(simulation)}
+                        className="bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600"
+                      >
+                        Export
+                      </button>
+                      <button 
+                        onClick={() => startRenaming(simulation)}
+                        className="bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600"
+                      >
+                        Rename
+                      </button>
+                      <button 
+                        onClick={() => deleteSimulation(simulation.id)}
+                        className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-gray-700 text-sm mb-2"> {/* Changed from text-gray-600 to text-gray-700 */}
+                    Created: {new Date(simulation.timestamp).toLocaleString()}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-sm text-gray-800"> {/* Added text-gray-800 */}
+                    <p><span className="font-semibold">Interest:</span> {simulation.inputs.nominalInterest}%</p>
+                    <p><span className="font-semibold">Inflation:</span> {simulation.inputs.inflationRate}%</p>
+                    <p><span className="font-semibold">Initial Capital:</span> ${formatNumber(simulation.inputs.initialCapital, 0)}</p>
+                    <p><span className="font-semibold">Monthly Income Goal:</span> ${formatNumber(simulation.inputs.desiredMonthlyIncome, 0)}</p>
+                    <p><span className="font-semibold">Final Capital:</span> ${formatNumber(simulation.results.capitalAfterTax)}</p>
+                    <p><span className="font-semibold">Monthly Income:</span> ${formatNumber(simulation.results.monthlyIncomeAfterTax)}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
