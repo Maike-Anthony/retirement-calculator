@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { runInvestmentCalculator } from "../../utils/calculator";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { Analytics } from "@vercel/analytics/next";
 
 // Helper function to format numbers with thousand separators
 const formatNumber = (num, decimals = 2) => {
@@ -208,7 +209,7 @@ const exportSavedSimulation = (simulation) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-6">
       <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl p-8">
-        <h1 className="text-4xl font-bold text-blue-800 mb-8 text-center">Retirement Calculator</h1>
+        <h1 className="text-4xl font-bold text-blue-800 mb-8 text-center">Retirement Calculator <Analytics/></h1>
 
         {/* Two-column inputs */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
